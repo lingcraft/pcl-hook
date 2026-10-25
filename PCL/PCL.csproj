@@ -21,19 +21,8 @@
     <Reference Include="System.Core" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="DotNetDetour\AssemblyUtil.cs" Link="DotNetDetour\AssemblyUtil.cs" />
-    <Compile Include="DotNetDetour\DetourFactory.cs" Link="DotNetDetour\DetourFactory.cs" />
-    <Compile Include="DotNetDetour\DetourWays\NativeDetourFor32Bit.cs" Link="DotNetDetour\NativeDetourFor32Bit.cs" />
-    <Compile Include="DotNetDetour\DetourWays\NativeDetourFor64Bit.cs" Link="DotNetDetour\NativeDetourFor64Bit.cs" />
-    <Compile Include="DotNetDetour\IDetour.cs" Link="DotNetDetour\IDetour.cs" />
-    <Compile Include="DotNetDetour\IMethodMonitor.cs" Link="DotNetDetour\IMethodMonitor.cs" />
-    <Compile Include="DotNetDetour\LDasm.cs" Link="DotNetDetour\LDasm.cs" />
-    <Compile Include="DotNetDetour\Monitor.cs" Link="DotNetDetour\Monitor.cs" />
-    <Compile Include="DotNetDetour\MonitorAttribute.cs" Link="DotNetDetour\MonitorAttribute.cs" />
-    <Compile Include="DotNetDetour\NativeAPI.cs" Link="DotNetDetour\NativeAPI.cs" />
-    <Compile Include="DotNetDetour\OriginalAttribute.cs" Link="DotNetDetour\OriginalAttribute.cs" />
-  </ItemGroup>
-  <ItemGroup>
+    <!-- 通配符包含 DotNetDetour 全部源码；MethodTableDetour.cs 未实现当前 IDetour.Patch 签名，排除 -->
+    <Compile Include="DotNetDetour\**\*.cs" Exclude="DotNetDetour\DetourWays\MethodTableDetour.cs" />
     <Compile Include="HOOK.cs" />
   </ItemGroup>
 </Project>
