@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <Nullable>disable</Nullable>
+    <LangVersion>9.0</LangVersion>
+    <AssemblyName>PCL</AssemblyName>
+    <RootNamespace>PCL</RootNamespace>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <UseWPF>true</UseWPF>
+    <Version>1.0.0.0</Version>
+    <DebugType>none</DebugType>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+  </ItemGroup>
+  <ItemGroup>
+    <Reference Include="System.IO.Compression" />
+    <Reference Include="System.Core" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="DotNetDetour\AssemblyUtil.cs" Link="DotNetDetour\AssemblyUtil.cs" />
+    <Compile Include="DotNetDetour\DetourFactory.cs" Link="DotNetDetour\DetourFactory.cs" />
+    <Compile Include="DotNetDetour\DetourWays\NativeDetourFor32Bit.cs" Link="DotNetDetour\NativeDetourFor32Bit.cs" />
+    <Compile Include="DotNetDetour\DetourWays\NativeDetourFor64Bit.cs" Link="DotNetDetour\NativeDetourFor64Bit.cs" />
+    <Compile Include="DotNetDetour\IDetour.cs" Link="DotNetDetour\IDetour.cs" />
+    <Compile Include="DotNetDetour\IMethodMonitor.cs" Link="DotNetDetour\IMethodMonitor.cs" />
+    <Compile Include="DotNetDetour\LDasm.cs" Link="DotNetDetour\LDasm.cs" />
+    <Compile Include="DotNetDetour\Monitor.cs" Link="DotNetDetour\Monitor.cs" />
+    <Compile Include="DotNetDetour\MonitorAttribute.cs" Link="DotNetDetour\MonitorAttribute.cs" />
+    <Compile Include="DotNetDetour\NativeAPI.cs" Link="DotNetDetour\NativeAPI.cs" />
+    <Compile Include="DotNetDetour\OriginalAttribute.cs" Link="DotNetDetour\OriginalAttribute.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="HOOK.cs" />
+  </ItemGroup>
+</Project>
