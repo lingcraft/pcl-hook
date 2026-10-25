@@ -33,6 +33,7 @@ namespace PCL
         static Type _iconHandler;
         static Type _modpackType, _modifyType;
         static bool _tliLogged;
+        static bool _launchLogged;
 
         const BindingFlags F = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static;
         const BindingFlags I = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
@@ -104,6 +105,28 @@ namespace PCL
                 var origin = rv.GetMethods(I).First(m => m.Name == "ToListItem");
                 _iconHandler = origin.GetParameters()[1].ParameterType;
                 Patch(origin, typeof(HOOK).GetMethod("TLIRepl", F), typeof(HOOK).GetMethod("TLIProxy", F));
+            });
+
+            // 6) 下载页左侧「原版游戏」入口（2.99.0.1 起在 ctor 里被折叠）
+            Try("PageDownloadLeftCtor", () =>
+            {
+                var t = FindType(_asm, "PCL.PageDownloadLeft");
+                if (t == null) throw new HookNotFound("PCL.PageDownloadLeft not found");
+                // DotNetDetour 只能挂 MethodInfo，构造函数挂不了；
+                // 改为挂 ctor 里调用的 InitializeComponent，再排队到 ctor 结束后修正 4 个状态
+                var init = t.GetMethod("InitializeComponent", I);
+                if (init == null) throw new HookNotFound("PageDownloadLeft.InitializeComponent not found");
+                Patch(init, typeof(HOOK).GetMethod("NavInitRepl", F), typeof(HOOK).GetMethod("NavInitProxy", F));
+            });
+
+            // 7) 启动页：无实例时恢复「下载游戏」入口（2.99.0.1 起被改成禁用态）
+            Try("PageLaunchRefresh", () =>
+            {
+                var t = FindType(_asm, "PCL.PageLaunchLeft");
+                if (t == null) throw new HookNotFound("PCL.PageLaunchLeft not found");
+                var m = t.GetMethod("RefreshButtonsUI", I);
+                if (m == null) throw new HookNotFound("RefreshButtonsUI not found");
+                Patch(m, typeof(HOOK).GetMethod("LaunchRefreshRepl", F), typeof(HOOK).GetMethod("LaunchRefreshProxy", F));
             });
 
             PackTestIfRequested();
@@ -388,6 +411,105 @@ namespace PCL
             var call = LExpr.Call(
                 method.IsStatic ? null : LExpr.Constant(target, method.DeclaringType), method, args);
             return LExpr.Lambda(handlerType, call, pars).Compile();
+        }
+
+        // ───────── 6) 下载页导航：恢复「原版游戏」入口 ─────────
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        static void NavInitProxy(object self)
+        {
+            Log("nav init proxy not redirected");
+        }
+
+        static void NavInitRepl(object self)
+        {
+            try { NavInitProxy(self); }
+            catch (Exception ex) { Log("nav init orig ex: " + ex.Message); return; }
+
+            // InitializeComponent 在 ctor 中间被调用，排队到 ctor 结束后再改状态
+            try
+            {
+                var app = Application.Current;
+                if (app == null) { FixNav(self); return; }
+                app.Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    try { FixNav(self); }
+                    catch (Exception ex) { Log("nav fix ex: " + ex.Message); }
+                }));
+            }
+            catch (Exception ex) { Log("nav schedule ex: " + ex.Message); }
+        }
+
+        static void FixNav(object self)
+        {
+            try
+            {
+                var t = self.GetType();
+
+                var itemInstall = t.GetProperty("ItemInstall", I)?.GetValue(self, null) as UIElement;
+                if (itemInstall != null) itemInstall.Visibility = Visibility.Visible;
+
+                var labResource = t.GetProperty("LabResource", I)?.GetValue(self, null) as UIElement;
+                if (labResource != null) labResource.Visibility = Visibility.Visible;
+
+                // 不能只改 PageID：PageChange 里有 “PageID == Id 就 return” 的短路，
+                // 只改字段会导致点了「原版游戏」也不切换。这里直接走 PageChange(0)。
+                var change = t.GetMethod("PageChange", I);
+                if (change != null)
+                {
+                    var pt = change.GetParameters()[0].ParameterType;
+                    change.Invoke(self, new[] { Enum.ToObject(pt, 0) });
+                }
+
+                var itemMod = t.GetProperty("ItemMod", I)?.GetValue(self, null);
+                if (itemMod != null)
+                {
+                    var checkedProp = itemMod.GetType().GetProperty("Checked", I);
+                    if (checkedProp != null && checkedProp.CanWrite && checkedProp.PropertyType == typeof(bool))
+                        checkedProp.SetValue(itemMod, false, null);
+                }
+
+                Log("nav restored: 原版游戏 entry visible");
+            }
+            catch (Exception ex) { Log("nav fix ex: " + ex.Message); }
+        }
+
+        // ───────── 7) 启动页：无实例时恢复「下载游戏」 ─────────
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        static void LaunchRefreshProxy(object self)
+        {
+            Log("launch refresh proxy not redirected");
+        }
+
+        static void LaunchRefreshRepl(object self)
+        {
+            try { LaunchRefreshProxy(self); }
+            catch (Exception ex) { Log("launch refresh orig ex: " + ex.Message); return; }
+
+            try
+            {
+                // 2.99.0.0 的 state 1 来自「隐藏下载页」设置，不能覆盖；只有 2.99.0.1+ 才无条件下调
+                if (_asm.GetName().Version < new Version(2, 99, 0, 1)) return;
+
+                var t = self.GetType();
+                var stateField = t.GetField("BtnLaunchState", I);
+                if (stateField == null) return;
+                if (Convert.ToInt32(stateField.GetValue(self)) != 1) return;
+
+                var btn = t.GetProperty("BtnLaunch", I)?.GetValue(self, null);
+                if (btn is UIElement ui)
+                {
+                    var textProp = btn.GetType().GetProperty("Text", I);
+                    if (textProp != null && textProp.CanWrite) textProp.SetValue(btn, "下载游戏", null);
+                    ui.IsEnabled = true;
+                }
+                stateField.SetValue(self, 2);   // 点击处理器按 state 分发，必须一起改
+                if (!_launchLogged)
+                {
+                    _launchLogged = true;
+                    Log("launch: no-instance download entry restored");
+                }
+            }
+            catch (Exception ex) { Log("launch fix ex: " + ex.Message); }
         }
 
         // ───────── 辅助 ─────────
